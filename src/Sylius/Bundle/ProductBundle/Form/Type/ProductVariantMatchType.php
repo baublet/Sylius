@@ -13,6 +13,7 @@ namespace Sylius\Bundle\ProductBundle\Form\Type;
 
 use Sylius\Bundle\ProductBundle\Form\DataTransformer\ProductVariantToProductOptionsTransformer;
 use Sylius\Component\Product\Model\ProductInterface;
+use Sylius\Component\Product\Model\ProductOptionInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -22,6 +23,7 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 final class ProductVariantMatchType extends AbstractType
 {
+    private $availableOptionValues = false;
     /**
      * {@inheritdoc}
      */
@@ -31,6 +33,7 @@ final class ProductVariantMatchType extends AbstractType
         $product = $options['product'];
 
         foreach ($product->getOptions() as $i => $option) {
+            $this->filterNonExistantProductOptionValues($product, $option);
             $builder->add($option->getCode(), ProductOptionValueChoiceType::class, [
                 'label' => $option->getName(),
                 'option' => $option,
@@ -39,6 +42,31 @@ final class ProductVariantMatchType extends AbstractType
         }
 
         $builder->addModelTransformer(new ProductVariantToProductOptionsTransformer($options['product']));
+    }
+
+    /**
+     * This function filters product options and variants to exclude option values
+     * that this product does not have.
+     *
+     * @param  ProductInterface         $product
+     * @param  ProductOptionInterface   $option
+     */
+    private function filterNonExistantProductOptionValues(ProductInterface $product, ProductOptionInterface $option)
+    {
+        if($this->availableOptionValues === false) {
+            $this->availableOptionValues = [];
+            $variants = $product->getVariants();
+            foreach($variants as $variant) {
+                foreach($variant->getOptionValues() as $optionValue) {
+                    $this->availableOptionValues[] = $optionValue->getId();
+                }
+            }
+        }
+        foreach($option->getValues() as $optionValue) {
+            if(!in_array($optionValue->getId(), $this->availableOptionValues)) {
+                $option->removeValue($optionValue);
+            }
+        }
     }
 
     /**
